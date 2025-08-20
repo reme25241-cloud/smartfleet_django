@@ -1,0 +1,28 @@
+{% extends 'fleet/base.html' %}
+{% block title %}Revenue Dashboard{% endblock %}
+{% block content %}
+<h2 class="text-2xl mb-4">Revenue Dashboard</h2>
+<form method="POST" enctype="multipart/form-data" class="mb-4">
+  {% csrf_token %}
+  <input type="file" name="file" accept=".xlsx" required class="bg-white text-black p-2 rounded">
+  <button type="submit" class="ml-2 px-4 py-2 bg-blue-600 rounded">Upload Excel</button>
+</form>
+<div class="grid md:grid-cols-3 gap-4 mb-6 text-center">
+  <div class="bg-[#161B22] p-4 rounded"><h1 class="text-3xl">₹{{ total_revenue }} M</h1><div>Total Revenue</div></div>
+  <div class="bg-[#161B22] p-4 rounded"><h1 class="text-3xl">₹{{ total_profit }} M</h1><div>Total Profit</div></div>
+  <div class="bg-[#161B22] p-4 rounded"><h1 class="text-3xl">{{ total_km }} K</h1><div>Total KM Cost</div></div>
+</div>
+<canvas id="financeChart" height="100"></canvas>
+<script>
+const ctx = document.getElementById('financeChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type:'bar',
+  data: { labels: {{ days|safe }}, datasets:[
+    { label:'Total Revenue', data: {{ revenue|safe }} },
+    { label:'Total Expense', data: {{ expense|safe }} },
+    { label:'Trip Profit', data: {{ profit|safe }} }
+  ] },
+  options: { responsive:true }
+});
+</script>
+{% endblock %}

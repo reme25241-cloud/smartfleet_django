@@ -1,0 +1,13 @@
+{% extends 'fleet/base.html' %}
+{% block title %}Audit Trip {{ trip_id }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl mb-4">Edit Trip: {{ trip_id }}</h1>
+<form method="POST" class="space-y-3">
+  {% csrf_token %}
+  {% for k,v in trip_data.items %}
+    <label class="block text-sm">{{ k|title }}</label>
+    <input name="{{ k }}" value="{{ v }}" class="w-full bg-white text-black p-2 rounded"/>
+  {% endfor %}
+  <button class="bg-blue-600 px-4 py-2 rounded">Save & Download Audit</button>
+</form>
+{% endblock %}

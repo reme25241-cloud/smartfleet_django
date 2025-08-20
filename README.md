@@ -1,31 +1,32 @@
-# SmartFleet (Django + SQLite)
+# SmartFleet Django (Flask `app.py` port)
 
-A Django port of your Flask Smart Fleet app using the same UI and SQLite.
+A ready-to-run Django project that ports your Flask `app.py` features with the same UI (Tailwind/Chart.js), mobile responsiveness, SQLite, and `base.html` template inheritance.
 
 ## Quickstart
 
 ```bash
-# 1) Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 2) Install deps
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# 3) Migrate DB
 python manage.py migrate
-
-# 4) Run
 python manage.py runserver
 ```
 
-### Optional
-Create a superuser to access /admin:
-```
-python manage.py createsuperuser
-```
+Now open http://127.0.0.1:8000/
 
-### Notes
-- Uploads will be saved under `uploads/`.
-- Dashboard expects an Excel with columns like in your sample: `Trip ID, Trip Date, Vehicle ID, Route, Freight Amount, Total Trip Expense, Net Profit, Actual Distance (KM), Trip Status, POD Status`.
-- `Trip Generator` saves trips to DB. `Trip Closure` can bulk import closures from an Excel sheet or save manually.
+- Login with: **travels123@gmail.com / travel1**
+- Upload/analytics use the included sample Excel files in `data/`
+
+## Features
+- Signup/Login using allowed users list
+- Fleet Dashboard with file upload (Excel), filters, AI text report, charts
+- Trip Generator (manual form + PDF/Excel parsing helpers)
+- Trip Closure (insert/update from Excel or manual; stored in SQLite)
+- Trip Audit (edit a row and download audit text)
+- Financial Dashboard (10-day aggregates)
+- User Settings (demo in-memory users like original)
+
+## Notes
+- Database: SQLite (`db.sqlite3`)
+- Media uploads: `media/uploads/`
+- Tailwind via CDN; Chart.js via CDN

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Fleet Ai - Sign Up</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0B132B] flex flex-col items-center justify-center min-h-screen text-white font-sans p-4">
+  <div class="text-center mb-4">
+    <h1 class="text-4xl font-bold">Smart Fleet Ai</h1>
+    <p class="text-gray-400 mt-2">Powered by Ai Data Portal</p>
+  </div>
+  <form method="POST" action="" class="bg-[#0E1A36] p-6 rounded-xl w-full max-w-sm shadow-md space-y-3">
+    {% csrf_token %}
+    <input type="text" name="fullname" placeholder="Full Name" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <input type="email" name="email" placeholder="Email" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <input type="text" name="phone" placeholder="Phone Number" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <input type="password" name="password" placeholder="Password" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <input type="password" name="confirm_password" placeholder="Confirm Password" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <button type="submit" class="w-full bg-white text-[#0B132B] font-semibold py-2 rounded-md hover:bg-gray-200 transition duration-200">
+      Sign Up
+    </button>
+    <p class="text-gray-400 text-sm text-center">Already registered? <a href="/login" class="text-blue-400">Login</a></p>
+  </form>
+</body>
+</html>

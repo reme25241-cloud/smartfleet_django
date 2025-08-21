@@ -1,0 +1,17 @@
+{% extends 'fleet/base.html' %}
+{% block content %}
+<div class="greeting text-2xl font-bold text-[#00FFC6]">👋 Hello, {{ name }}!</div>
+<p class="mt-4 text-lg">Welcome to your <strong>Smart Fleet Ai Dashboard</strong> 🚛</p>
+<ul class="mt-4 space-y-1">
+  <li>📊 <strong>View Trip Reports</strong></li>
+  <li>📁 <strong>Upload Files</strong></li>
+  <li>🧮 <strong>Financial Analytics</strong></li>
+  <li>🚀 <strong>Trip Statistics</strong></li>
+  <li>🛠️ <strong>Trip Generator</strong></li>
+  <li>✅ <strong>Trip Closure</strong></li>
+  <li>🔍 <strong>Trip Audit</strong></li>
+</ul>
+<div class="mt-6">
+  <a href="{% url 'dashboard' %}" class="bg-[#00FFC6] text-[#0B132B] px-6 py-3 rounded-lg font-semibold hover:bg-[#02d9aa] transition">🚚 Go to Fleet Dashboard</a>
+</div>
+{% endblock %}

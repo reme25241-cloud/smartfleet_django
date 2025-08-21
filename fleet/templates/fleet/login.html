@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Fleet Ai - Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0B132B] flex flex-col items-center justify-center min-h-screen text-white font-sans p-4">
+  <div class="text-center mb-4">
+    <h1 class="text-4xl font-bold">Smart Fleet Ai</h1>
+    <p class="text-gray-400 mt-2">Login to your account</p>
+  </div>
+  <form method="POST" action="" class="bg-[#0E1A36] p-6 rounded-xl w-full max-w-sm shadow-md space-y-3">
+    {% csrf_token %}
+    <input type="email" name="email" placeholder="Email" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <input type="password" name="password" placeholder="Password" required class="w-full bg-[#1C2541] text-white placeholder-gray-400 p-3 rounded-md outline-none" />
+    <button type="submit" class="w-full bg-white text-[#0B132B] font-semibold py-2 rounded-md hover:bg-gray-200 transition duration-200">Login</button>
+    <p class="text-gray-400 text-sm text-center mt-3">
+      <a href="#" class="text-blue-400">Forgot / Change Password?</a>
+    </p>
+  </form>
+</body>
+</html>

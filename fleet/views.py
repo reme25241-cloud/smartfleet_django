@@ -149,6 +149,11 @@ import pandas as pd
 import os, json
 
 from .utils import load_excel
+import os, json
+import pandas as pd
+from django.conf import settings
+from django.shortcuts import render
+from .utils import load_excel
 
 def dashboard(request):
     df = None
@@ -202,30 +207,31 @@ def dashboard(request):
 
         filtered = df.copy()
 
-        if vehicle and "Vehicle" in filtered.columns:
-            filtered = filtered[filtered["Vehicle"] == vehicle]
+        if vehicle and "vehicle" in filtered.columns:
+            filtered = filtered[filtered["vehicle"] == vehicle]
 
-        if route and "Route" in filtered.columns:
-            filtered = filtered[filtered["Route"] == route]
+        if route and "route" in filtered.columns:
+            filtered = filtered[filtered["route"] == route]
 
-        if start and "Trip Date" in filtered.columns:
-            filtered = filtered[filtered["Trip Date"] >= pd.to_datetime(start)]
+        if start and "trip_date" in filtered.columns:
+            filtered = filtered[filtered["trip_date"] >= pd.to_datetime(start)]
 
-        if end and "Trip Date" in filtered.columns:
-            filtered = filtered[filtered["Trip Date"] <= pd.to_datetime(end)]
+        if end and "trip_date" in filtered.columns:
+            filtered = filtered[filtered["trip_date"] <= pd.to_datetime(end)]
 
-        # --- Summary like app.py ---
+        # --- Summary ---
         context["total_trips"] = len(filtered)
-        context["ongoing"] = len(filtered[filtered["Trip Status"] == "Pending Closure"])
-        context["closed"] = len(filtered[filtered["Trip Status"] == "Completed"])
-        context["flags"] = len(filtered[filtered["Trip Status"] == "Under Audit"])
-        context["resolved"] = len(filtered[filtered["Trip Status"] == "Resolved"])
+        if "trip_status" in filtered.columns:
+            context["ongoing"] = len(filtered[filtered["trip_status"] == "Pending Closure"])
+            context["closed"] = len(filtered[filtered["trip_status"] == "Completed"])
+            context["flags"] = len(filtered[filtered["trip_status"] == "Under Audit"])
+            context["resolved"] = len(filtered[filtered["trip_status"] == "Resolved"])
 
-        if "Revenue" in filtered.columns and "Expense" in filtered.columns and "Km" in filtered.columns:
-            rev = filtered["Revenue"].sum()
-            exp = filtered["Expense"].sum()
+        if all(col in filtered.columns for col in ["revenue", "expense", "km"]):
+            rev = filtered["revenue"].sum()
+            exp = filtered["expense"].sum()
             profit = rev - exp
-            kms = filtered["Km"].sum()
+            kms = filtered["km"].sum()
 
             context.update({
                 "rev_m": round(rev / 1_000_000, 2),
@@ -236,11 +242,16 @@ def dashboard(request):
                 "profit_pct": round((profit / rev) * 100, 2) if rev else 0,
             })
 
-        # Charts
-        if "Day" in filtered.columns:
-            daily = filtered.groupby("Day").size().tolist()
-            audited = filtered[filtered["Trip Status"] == "Under Audit"].groupby("Day").size().tolist()
-            audit_pct = [round((a / d) * 100, 1) if d else 0 for d, a in zip(daily, audited)]
+        # --- Charts ---
+        if "day" in filtered.columns:
+            daily = filtered.groupby("day").size().tolist()
+            audited = (
+                filtered[filtered["trip_status"] == "Under Audit"]
+                .groupby("day").size().tolist()
+                if "trip_status" in filtered.columns else []
+            )
+            audit_pct = [round((a / d) * 100, 1) if d else 0
+                         for d, a in zip(daily, audited)]
             context.update({
                 "daily": json.dumps(daily),
                 "audited": json.dumps(audited),
@@ -256,11 +267,10 @@ def dashboard(request):
         context["rows"] = filtered.to_dict("records")
 
         # Dropdown filter values
-        context["vehicles"] = sorted(df["Vehicle"].dropna().unique()) if "Vehicle" in df.columns else []
-        context["routes"] = sorted(df["Route"].dropna().unique()) if "Route" in df.columns else []
+        context["vehicles"] = sorted(df["vehicle"].dropna().unique()) if "vehicle" in df.columns else []
+        context["routes"] = sorted(df["route"].dropna().unique()) if "route" in df.columns else []
 
     return render(request, "fleet/dashboard.html", context)
-
 
 
 # --- Simple in-memory users table like Flask demo ---

@@ -154,6 +154,12 @@ import pandas as pd
 from django.conf import settings
 from django.shortcuts import render
 from .utils import load_excel
+from pathlib import Path
+import pandas as pd
+import os, json
+from django.shortcuts import render
+from django.conf import settings
+from .utils import load_excel
 
 def dashboard(request):
     df = None
@@ -162,6 +168,10 @@ def dashboard(request):
     if request.method == "POST" and request.FILES.get("excel"):
         file = request.FILES["excel"]
         save_path = os.path.join(settings.MEDIA_ROOT, "uploaded.xlsx")
+
+        # ✅ Ensure MEDIA_ROOT exists (fixes Render FileNotFoundError)
+        Path(settings.MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
+
         with open(save_path, "wb+") as dest:
             for chunk in file.chunks():
                 dest.write(chunk)
@@ -173,7 +183,7 @@ def dashboard(request):
         if os.path.exists(file_path):
             df = load_excel(file_path)
 
-    # Default context to avoid JS errors
+    # Default context (avoids JS/template errors)
     context = {
         "total_trips": 0,
         "ongoing": 0,
@@ -227,20 +237,20 @@ def dashboard(request):
             context["flags"] = len(filtered[filtered["trip_status"] == "Under Audit"])
             context["resolved"] = len(filtered[filtered["trip_status"] == "Resolved"])
 
-        if all(col in filtered.columns for col in ["revenue", "expense", "km"]):
-            rev = filtered["revenue"].sum()
-            exp = filtered["expense"].sum()
-            profit = rev - exp
-            kms = filtered["km"].sum()
+        # ✅ Normalize revenue/expense/km/profit using closure file headers
+        rev = filtered.get("revenue", filtered.get("freight amount", pd.Series(0))).sum()
+        exp = filtered.get("expense", filtered.get("total trip expense", pd.Series(0))).sum()
+        profit = filtered.get("profit", filtered.get("net profit", pd.Series(0))).sum()
+        kms = filtered.get("km", filtered.get("actual distance (km)", pd.Series(0))).sum()
 
-            context.update({
-                "rev_m": round(rev / 1_000_000, 2),
-                "exp_m": round(exp / 1_000_000, 2),
-                "profit_m": round(profit / 1_000_000, 2),
-                "kms_k": round(kms / 1000, 2),
-                "per_km": round(rev / kms, 2) if kms else 0,
-                "profit_pct": round((profit / rev) * 100, 2) if rev else 0,
-            })
+        context.update({
+            "rev_m": round(rev / 1_000_000, 2),
+            "exp_m": round(exp / 1_000_000, 2),
+            "profit_m": round(profit / 1_000_000, 2),
+            "kms_k": round(kms / 1000, 2),
+            "per_km": round(rev / kms, 2) if kms else 0,
+            "profit_pct": round((profit / rev) * 100, 2) if rev else 0,
+        })
 
         # --- Charts ---
         if "day" in filtered.columns:
@@ -271,7 +281,6 @@ def dashboard(request):
         context["routes"] = sorted(df["route"].dropna().unique()) if "route" in df.columns else []
 
     return render(request, "fleet/dashboard.html", context)
-
 
 # --- Simple in-memory users table like Flask demo ---
 from werkzeug.security import generate_password_hash

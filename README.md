@@ -1,4 +1,4 @@
-# SmartFleet Django 
+# SmartFleet Django (Flask `app.py` port)
 
 A ready-to-run Django project that ports your Flask `app.py` features with the same UI (Tailwind/Chart.js), mobile responsiveness, SQLite, and `base.html` template inheritance.
 

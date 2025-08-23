@@ -3,6 +3,7 @@
 {% block title %}Fleet Dashboard{% endblock %}
 {% block content %}
 <h1 class="text-3xl font-bold mb-6">Fleet Dashboard</h1>
+
 <div class="mb-6">
   <h2 class="text-lg font-semibold mb-2">Upload Excel File</h2>
   <form id="upload-form" method="post" enctype="multipart/form-data">
@@ -18,11 +19,15 @@
 <form method="get" class="flex flex-wrap gap-4 mb-6">
   <select name="vehicle" class="text-black p-2 rounded">
     <option value="">All Vehicles</option>
-    {% for v in vehicles %}<option value="{{v}}" {% if v == request.GET.vehicle %}selected{% endif %}>{{v}}</option>{% endfor %}
+    {% for v in vehicles %}
+      <option value="{{v}}" {% if v == request.GET.vehicle %}selected{% endif %}>{{v}}</option>
+    {% endfor %}
   </select>
   <select name="route" class="text-black p-2 rounded">
     <option value="">All Routes</option>
-    {% for r in routes %}<option value="{{r}}" {% if r == request.GET.route %}selected{% endif %}>{{r}}</option>{% endfor %}
+    {% for r in routes %}
+      <option value="{{r}}" {% if r == request.GET.route %}selected{% endif %}>{{r}}</option>
+    {% endfor %}
   </select>
   <input type="date" name="start" class="text-black p-2 rounded" value="{{ request.GET.start }}">
   <input type="date" name="end" class="text-black p-2 rounded" value="{{ request.GET.end }}">
@@ -59,16 +64,24 @@
     {% if columns %}
       <thead>
         <tr class="text-yellow-300 font-semibold">
-          {% for col in columns %}<th class="px-2 py-1 border-b border-gray-500">{{ col }}</th>{% endfor %}
+          {% for col in columns %}
+            <th class="px-2 py-1 border-b border-gray-500">{{ col }}</th>
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
-        <tr class="hover:bg-gray-700">{% for col in columns %}<td class="px-2 py-1 border-b border-gray-600">{{ row|get_item:col }}</td>{% endfor %}</tr>
+          <tr class="hover:bg-gray-700">
+            {% for col in columns %}
+              <td class="px-2 py-1 border-b border-gray-600">{{ row|get_item:col }}</td>
+            {% endfor %}
+          </tr>
         {% endfor %}
       </tbody>
     {% else %}
-      <tbody><tr><td class="px-2 py-2 text-center text-gray-400">No rows to display.</td></tr></tbody>
+      <tbody>
+        <tr><td class="px-2 py-2 text-center text-gray-400">No rows to display.</td></tr>
+      </tbody>
     {% endif %}
   </table>
 </div>
@@ -85,120 +98,125 @@
 </div>
 
 <script>
-const dropArea = document.getElementById('drop-area');
-const fileElem = document.getElementById('fileElem');
-const statusDiv = document.getElementById('upload-status');
-dropArea.addEventListener('click', () => fileElem.click());
-['dragenter','dragover'].forEach(eName => dropArea.addEventListener(eName, e => { e.preventDefault(); dropArea.classList.add('bg-gray-200'); }));
-['dragleave','drop'].forEach(eName => dropArea.addEventListener(eName, e => { e.preventDefault(); dropArea.classList.remove('bg-gray-200'); }));
-dropArea.addEventListener('drop', e => { const file = e.dataTransfer.files[0]; uploadFile(file); });
-fileElem.addEventListener('change', () => { const file = fileElem.files[0]; uploadFile(file); });
-function uploadFile(file) {
-  if (!file) return;
-  const formData = new FormData();
-  formData.append('excel', file);
-  fetch('', { method:'POST', body: formData, credentials:'same-origin', headers:{'X-CSRFToken': getCSRFToken()} }).then(r => {
-    if (r.ok) { statusDiv.textContent='✅ File uploaded successfully! Refreshing...'; setTimeout(() => window.location.reload(), 1200); }
-    else { statusDiv.textContent='❌ Upload failed!'; }
-  }).catch(() => statusDiv.textContent='❌ Upload error!');
+// ---------- CSRF helper ----------
+function getCSRFToken() {
+  const name = 'csrftoken';
+  if (!document.cookie) return null;
+  const cookies = document.cookie.split(';');
+  for (let i = 0; i < cookies.length; i++) {
+    const cookie = cookies[i].trim();
+    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+      return decodeURIComponent(cookie.substring(name.length + 1));
+    }
+  }
+  return null;
 }
 
+// ---------- Drag & Drop Upload (hardened) ----------
+const dropArea = document.getElementById('drop-area') || document.body;
+let fileElem = document.getElementById('fileElem');
+const statusDiv = document.getElementById('upload-status') || (() => {
+  const d = document.createElement('div');
+  d.id = 'upload-status';
+  d.className = 'mt-2 text-sm text-green-400';
+  (dropArea || document.body).appendChild(d);
+  return d;
+})();
+
+// Fallback file input if missing
+if (!fileElem) {
+  fileElem = document.createElement('input');
+  fileElem.type = 'file';
+  fileElem.accept = '.xlsx,.xls';
+  fileElem.id = 'fileElem';
+  fileElem.style.display = 'none';
+  document.body.appendChild(fileElem);
+}
+
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+['dragenter','dragover','dragleave','drop'].forEach(evt =>
+  dropArea.addEventListener(evt, preventDefaults, false)
+);
+
+['dragenter','dragover'].forEach(evt =>
+  dropArea.addEventListener(evt, () => dropArea.classList.add('bg-gray-200'), false)
+);
+['dragleave','drop'].forEach(evt =>
+  dropArea.addEventListener(evt, () => dropArea.classList.remove('bg-gray-200'), false)
+);
+
+dropArea.addEventListener('click', () => fileElem.click());
+fileElem.addEventListener('change', () => {
+  const file = fileElem.files && fileElem.files[0];
+  if (file) uploadFile(file);
+});
+
+dropArea.addEventListener('drop', (e) => {
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+
+function isExcel(file) {
+  const okExt = /\.xlsx?$/.test(file.name.toLowerCase());
+  const okMime = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'].includes(file.type);
+  return okExt || okMime; // relax to support some browsers
+}
+
+function uploadFile(file) {
+  if (!file) return;
+  if (!isExcel(file)) {
+    statusDiv.textContent = '❌ Please upload an .xls or .xlsx file.';
+    return;
+  }
+  const formData = new FormData();
+  formData.append('excel', file); // server expects 'excel'
+  statusDiv.textContent = '⬆️ Uploading...';
+
+  fetch('', {
+    method: 'POST',
+    body: formData,
+    credentials: 'same-origin',
+    headers: {
+      'X-CSRFToken': getCSRFToken(),
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(async (r) => {
+    if (r.ok) {
+      statusDiv.textContent = '✅ File uploaded successfully! Refreshing...';
+      setTimeout(() => window.location.reload(), 1000);
+    } else {
+      const msg = await r.text().catch(()=>'');
+      console.error('Upload failed:', r.status, msg);
+      statusDiv.textContent = '❌ Upload failed!';
+    }
+  })
+  .catch(err => {
+    console.error('Upload error:', err);
+    statusDiv.textContent = '❌ Upload error!';
+  });
+}
+
+// ---------- Charts ----------
 new Chart(document.getElementById('auditChart').getContext('2d'), {
   data: {
     labels: Array.from({length:31}, (_,i)=> i+1),
-    datasets:[
-      {type:'bar', label:'Closed', data: {{ daily|safe }} },
-      {type:'bar', label:'Audited', data: {{ audited|safe }} },
-      {type:'line', label:'Audit %', data: {{ audit_pct|safe }}, yAxisID:'y1', borderColor:'yellow', fill:false}
-    ]},
-  options: {responsive:true, scales:{ y:{beginAtZero:true}, y1:{beginAtZero:true, position:'right'} } }
+    datasets: [
+      { type:'bar',  label:'Closed',  data: {{ daily|safe }} },
+      { type:'bar',  label:'Audited', data: {{ audited|safe }} },
+      { type:'line', label:'Audit %', data: {{ audit_pct|safe }}, yAxisID:'y1', borderColor:'yellow', fill:false }
+    ]
+  },
+  options: { responsive:true, scales:{ y:{beginAtZero:true}, y1:{beginAtZero:true, position:'right'} } }
 });
+
 new Chart(document.getElementById('financeChart').getContext('2d'), {
   type:'bar',
   data: { labels: {{ bar_labels|safe }}, datasets:[{ label:'₹ in Millions', data: {{ bar_values|safe }} }] }
 });
 </script>
 {% endblock %}
-
-<script>
-// --- CSRF-safe drag & drop + click-to-upload for Django ---
-(function() {
-  
-  const dropArea = document.getElementById('drop-area') || document.querySelector('.drop-area') || document.body;
-  const fileInput = (function() {
-    let el = document.getElementById('fileElem') || document.querySelector('input[type="file"]');
-    if (!el) {
-      el = document.createElement('input');
-      el.type = 'file';
-      el.style.display = 'none';
-      document.body.appendChild(el);
-    }
-    el.id = el.id || 'fileElem';
-    return el;
-  })();
-  const statusDiv = document.getElementById('upload-status') || (function() {
-    const d = document.createElement('div');
-    d.id = 'upload-status';
-    d.style.marginTop = '0.5rem';
-    (dropArea || document.body).appendChild(d);
-    return d;
-  })();
-
-  function preventDefaults (e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  ['dragenter','dragover','dragleave','drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, preventDefaults, false);
-  });
-
-  ['dragenter','dragover'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => dropArea.classList && dropArea.classList.add('bg-gray-200'), false);
-  });
-  ['dragleave','drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => dropArea.classList && dropArea.classList.remove('bg-gray-200'), false);
-  });
-
-  dropArea.addEventListener('drop', e => {
-    const dt = e.dataTransfer;
-    const file = dt && dt.files && dt.files[0];
-    if (file) uploadFile(file);
-  });
-
-  dropArea.addEventListener('click', () => fileInput && fileInput.click());
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files && fileInput.files[0];
-    if (file) uploadFile(file);
-  });
-
-  function uploadFile(file) {
-    const formData = new FormData();
-    // Support both 'excel' and 'file' server-side field names.
-    formData.append('excel', file);
-    formData.append('file', file);
-
-    statusDiv.textContent = '⬆️ Uploading...';
-
-    fetch('', {
-      method: 'POST',
-      body: formData,
-      \1 getCSRFToken() }
-    })
-    .then(async (r) => {
-      if (r.ok) {
-        statusDiv.textContent = '✅ File uploaded successfully. Refreshing...';
-        setTimeout(() => { try { window.location.reload(); } catch(_) {} }, 900);
-      } else {
-        const t = await r.text().catch(()=>'');
-        console.error('Upload failed:', r.status, t);
-        statusDiv.textContent = '❌ Upload failed!';
-      }
-    })
-    .catch(err => {
-      console.error('Upload error:', err);
-      statusDiv.textContent = '❌ Upload failed!';
-    });
-  }
-})();
-</script>

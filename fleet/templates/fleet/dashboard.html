@@ -4,6 +4,7 @@
 {% block content %}
 <h1 class="text-3xl font-bold mb-6">Fleet Dashboard</h1>
 
+<!-- Upload Excel -->
 <div class="mb-6">
   <h2 class="text-lg font-semibold mb-2">Upload Excel File</h2>
   <form id="upload-form" method="post" enctype="multipart/form-data">
@@ -16,6 +17,7 @@
   <div id="upload-status" class="mt-2 text-sm text-green-400"></div>
 </div>
 
+<!-- Filters -->
 <form method="get" class="flex flex-wrap gap-4 mb-6">
   <select name="vehicle" class="text-black p-2 rounded">
     <option value="">All Vehicles</option>
@@ -34,6 +36,7 @@
   <button class="bg-green-600 px-4 py-2 rounded">Apply Filters</button>
 </form>
 
+<!-- Summary Cards -->
 <div class="grid md:grid-cols-3 gap-4 mb-6">
   <div class="bg-[#1C2541] p-4 rounded">
     <p>Total Trips: <b>{{ total_trips }}</b></p>
@@ -58,6 +61,7 @@
   </div>
 </div>
 
+<!-- Trip Records -->
 <div class="bg-[#1C2541] p-4 rounded mb-6 overflow-auto max-h-[400px]">
   <h2 class="font-semibold text-lg mb-2">Trip Records (Filtered)</h2>
   <table class="w-full text-sm text-left min-w-[600px]">
@@ -86,6 +90,7 @@
   </table>
 </div>
 
+<!-- Charts -->
 <div class="grid md:grid-cols-2 gap-4 mb-8">
   <div class="bg-[#1C2541] p-4 rounded">
     <h2 class="mb-2 font-semibold text-lg">Daily Trips vs Audits</h2>
@@ -97,6 +102,7 @@
   </div>
 </div>
 
+<!-- Scripts -->
 <script>
 // ---------- CSRF helper ----------
 function getCSRFToken() {
@@ -105,43 +111,25 @@ function getCSRFToken() {
   const cookies = document.cookie.split(';');
   for (let i = 0; i < cookies.length; i++) {
     const cookie = cookies[i].trim();
-    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+    if (cookie.startsWith(name + '=')) {
       return decodeURIComponent(cookie.substring(name.length + 1));
     }
   }
   return null;
 }
 
-// ---------- Drag & Drop Upload (hardened) ----------
-const dropArea = document.getElementById('drop-area') || document.body;
-let fileElem = document.getElementById('fileElem');
-const statusDiv = document.getElementById('upload-status') || (() => {
-  const d = document.createElement('div');
-  d.id = 'upload-status';
-  d.className = 'mt-2 text-sm text-green-400';
-  (dropArea || document.body).appendChild(d);
-  return d;
-})();
-
-// Fallback file input if missing
-if (!fileElem) {
-  fileElem = document.createElement('input');
-  fileElem.type = 'file';
-  fileElem.accept = '.xlsx,.xls';
-  fileElem.id = 'fileElem';
-  fileElem.style.display = 'none';
-  document.body.appendChild(fileElem);
-}
+// ---------- Drag & Drop Upload ----------
+const dropArea = document.getElementById('drop-area');
+const fileElem = document.getElementById('fileElem');
+const statusDiv = document.getElementById('upload-status');
 
 function preventDefaults(e) {
   e.preventDefault();
   e.stopPropagation();
 }
-
 ['dragenter','dragover','dragleave','drop'].forEach(evt =>
   dropArea.addEventListener(evt, preventDefaults, false)
 );
-
 ['dragenter','dragover'].forEach(evt =>
   dropArea.addEventListener(evt, () => dropArea.classList.add('bg-gray-200'), false)
 );
@@ -151,52 +139,47 @@ function preventDefaults(e) {
 
 dropArea.addEventListener('click', () => fileElem.click());
 fileElem.addEventListener('change', () => {
-  const file = fileElem.files && fileElem.files[0];
+  const file = fileElem.files[0];
   if (file) uploadFile(file);
 });
-
-dropArea.addEventListener('drop', (e) => {
-  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+dropArea.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
   if (file) uploadFile(file);
 });
 
 function isExcel(file) {
   const okExt = /\.xlsx?$/.test(file.name.toLowerCase());
-  const okMime = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'].includes(file.type);
-  return okExt || okMime; // relax to support some browsers
+  const okMime = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel'
+  ].includes(file.type);
+  return okExt || okMime;
 }
 
 function uploadFile(file) {
-  if (!file) return;
   if (!isExcel(file)) {
     statusDiv.textContent = '❌ Please upload an .xls or .xlsx file.';
     return;
   }
   const formData = new FormData();
-  formData.append('excel', file); // server expects 'excel'
+  formData.append('excel', file);
   statusDiv.textContent = '⬆️ Uploading...';
 
   fetch('', {
     method: 'POST',
     body: formData,
     credentials: 'same-origin',
-    headers: {
-      'X-CSRFToken': getCSRFToken(),
-      'X-Requested-With': 'XMLHttpRequest'
-    }
+    headers: { 'X-CSRFToken': getCSRFToken() }
   })
-  .then(async (r) => {
+  .then(r => {
     if (r.ok) {
       statusDiv.textContent = '✅ File uploaded successfully! Refreshing...';
       setTimeout(() => window.location.reload(), 1000);
     } else {
-      const msg = await r.text().catch(()=>'');
-      console.error('Upload failed:', r.status, msg);
       statusDiv.textContent = '❌ Upload failed!';
     }
   })
-  .catch(err => {
-    console.error('Upload error:', err);
+  .catch(() => {
     statusDiv.textContent = '❌ Upload error!';
   });
 }
@@ -204,7 +187,7 @@ function uploadFile(file) {
 // ---------- Charts ----------
 new Chart(document.getElementById('auditChart').getContext('2d'), {
   data: {
-    labels: Array.from({length:31}, (_,i)=> i+1),
+    labels: {{ daily|safe }},
     datasets: [
       { type:'bar',  label:'Closed',  data: {{ daily|safe }} },
       { type:'bar',  label:'Audited', data: {{ audited|safe }} },

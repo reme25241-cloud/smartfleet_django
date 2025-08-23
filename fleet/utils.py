@@ -2,13 +2,38 @@ import pandas as pd
 import fitz
 import os
 
+import pandas as pd
+
 def load_excel(file_path):
     df = pd.read_excel(file_path)
-    df.columns = df.columns.str.strip()
-    if 'Trip Date' in df.columns:
-        df['Trip Date'] = pd.to_datetime(df['Trip Date'], errors='coerce')
-        df['Day'] = df['Trip Date'].dt.day
+    df.columns = df.columns.str.strip().str.lower()
+
+    rename_map = {
+        "trip date": "trip_date",
+        "date": "trip_date",
+        "vehicle": "vehicle",
+        "vehicle id": "vehicle",
+        "route": "route",
+        "freight amount": "revenue",
+        "revenue (inr)": "revenue",
+        "total trip expense": "expense",
+        "expense": "expense",
+        "cost": "expense",
+        "net profit": "profit",
+        "actual distance (km)": "km",
+        "distance": "km",
+        "km": "km",
+        "trip status": "trip_status",
+    }
+    df = df.rename(columns={c: rename_map.get(c, c) for c in df.columns})
+
+    if "trip_date" in df.columns:
+        df["trip_date"] = pd.to_datetime(df["trip_date"], errors="coerce")
+        df["day"] = df["trip_date"].dt.day
+
     return df
+
+
 
 def generate_ai_report(filtered_df):
     if filtered_df.empty:

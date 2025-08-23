@@ -62,80 +62,206 @@ def fleet_dashboard_redirect(request):
     return redirect('dashboard')
 
 # --- Dashboard (Fleet) ---@ensure_csrf_cookie
+# def dashboard(request):
+#     # default excel from data folder; allow uploads via POST
+#     upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+#     os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+#     os.makedirs(upload_dir, exist_ok=True)
+#     os.makedirs(upload_dir, exist_ok=True)
+
+#     if request.method == 'POST' and 'excel' in request.FILES:
+#         f = request.FILES['excel']
+#         path = os.path.join(upload_dir, f.name)
+#         with open(path, 'wb+') as dest:
+#             for chunk in f.chunks():
+#                 dest.write(chunk)
+#         df = load_excel(path)
+#     else:
+#         path = DATA_FLEET if os.path.exists(DATA_FLEET) else None
+#         df = load_excel(path) if path else pd.DataFrame()
+
+#     # Filters
+#     vehicle = request.GET.get('vehicle') or ''
+#     route = request.GET.get('route') or ''
+#     start = request.GET.get('start') or ''
+#     end = request.GET.get('end') or ''
+
+#     filtered = df.copy()
+#     if not df.empty:
+#         if vehicle:
+#             filtered = filtered[filtered['Vehicle ID'] == vehicle]
+#         if route and 'Route' in filtered.columns:
+#             filtered = filtered[filtered['Route'] == route]
+#         if start and end and 'Trip Date' in filtered.columns:
+#             start_date = pd.to_datetime(start)
+#             end_date = pd.to_datetime(end)
+#             filtered = filtered[(filtered['Trip Date'] >= start_date) & (filtered['Trip Date'] <= end_date)]
+
+#         vehicles = sorted(filtered['Vehicle ID'].dropna().unique()) if 'Vehicle ID' in df.columns else []
+#         routes = sorted(filtered['Route'].dropna().unique()) if 'Route' in df.columns else []
+#         available_dates = sorted(filtered['Trip Date'].dropna().dt.strftime('%Y-%m-%d').unique()) if 'Trip Date' in df.columns else []
+#     else:
+#         vehicles, routes, available_dates = [], [], []
+
+#     def g(col): return filtered[col].sum() if col in filtered.columns else 0
+#     total_trips = len(filtered)
+#     ongoing = len(filtered[filtered.get('Trip Status','') == 'Pending Closure']) if 'Trip Status' in filtered.columns else 0
+#     closed = len(filtered[filtered.get('Trip Status','') == 'Completed']) if 'Trip Status' in filtered.columns else 0
+#     flags = len(filtered[filtered.get('Trip Status','') == 'Under Audit']) if 'Trip Status' in filtered.columns else 0
+#     resolved = len(filtered[(filtered.get('Trip Status','') == 'Under Audit') & (filtered.get('POD Status','') == 'Yes')]) if 'Trip Status' in filtered.columns and 'POD Status' in filtered.columns else 0
+
+#     rev = g('Freight Amount'); exp = g('Total Trip Expense'); profit = g('Net Profit'); kms = g('Actual Distance (KM)')
+#     rev_m, exp_m, profit_m = round(rev/1e6,2), round(exp/1e6,2), round(profit/1e6,2)
+#     kms_k = round(kms/1e3,1) if kms else 0
+#     per_km = round(profit/kms,2) if kms else 0
+#     profit_pct = round((profit/rev)*100,1) if rev else 0
+
+#     if not filtered.empty and 'Day' not in filtered.columns and 'Trip Date' in filtered.columns:
+#         filtered['Day'] = filtered['Trip Date'].dt.day
+#     daily = filtered.groupby('Day')['Trip ID'].count().reindex(range(1,32), fill_value=0).tolist() if 'Trip ID' in filtered.columns and 'Day' in filtered.columns else [0]*31
+#     audited = filtered[filtered.get('Trip Status','') == 'Under Audit'].groupby('Day')['Trip ID'].count().reindex(range(1,32), fill_value=0).tolist() if 'Trip ID' in filtered.columns and 'Day' in filtered.columns else [0]*31
+#     audit_pct = [round(a/b*100,1) if b else 0 for a,b in zip(audited, daily)]
+
+#     bar_labels = ['Revenue','Expense','Profit']
+#     columns = list(filtered.columns) if not filtered.empty else []
+#     rows = filtered.fillna('').to_dict('records') if not filtered.empty else []
+#     bar_values = [float(rev_m), float(exp_m), float(profit_m)]
+#     ai_report = generate_ai_report(filtered) if not filtered.empty else "Upload an Excel to see the report."
+
+#     context = dict(total_trips=total_trips, ongoing=ongoing, closed=closed, flags=flags,
+#                    columns=columns, rows=rows,
+#                    resolved=resolved, rev_m=rev_m, exp_m=exp_m, profit_m=profit_m, kms_k=kms_k,
+#                    per_km=per_km, profit_pct=profit_pct, ai_report=ai_report,
+#                    vehicles=vehicles, routes=routes, request=request, filtered=filtered.fillna(''),
+#                    daily=daily, audited=audited, audit_pct=audit_pct,
+#                    bar_labels=bar_labels, bar_values=bar_values, available_dates=available_dates)
+#     return render(request, 'fleet/dashboard.html', context)
+
+
+from django.shortcuts import render
+from django.conf import settings
+import os, pandas as pd
+from .utils import load_excel
+
+from django.shortcuts import render
+from django.conf import settings
+import pandas as pd
+import os, json
+
+from .utils import load_excel
+
 def dashboard(request):
-    # default excel from data folder; allow uploads via POST
-    upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
-    os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
-    os.makedirs(upload_dir, exist_ok=True)
-    os.makedirs(upload_dir, exist_ok=True)
+    df = None
 
-    if request.method == 'POST' and 'excel' in request.FILES:
-        f = request.FILES['excel']
-        path = os.path.join(upload_dir, f.name)
-        with open(path, 'wb+') as dest:
-            for chunk in f.chunks():
+    # --- Handle Upload ---
+    if request.method == "POST" and request.FILES.get("excel"):
+        file = request.FILES["excel"]
+        save_path = os.path.join(settings.MEDIA_ROOT, "uploaded.xlsx")
+        with open(save_path, "wb+") as dest:
+            for chunk in file.chunks():
                 dest.write(chunk)
-        df = load_excel(path)
-    else:
-        path = DATA_FLEET if os.path.exists(DATA_FLEET) else None
-        df = load_excel(path) if path else pd.DataFrame()
+        df = load_excel(save_path)
 
-    # Filters
-    vehicle = request.GET.get('vehicle') or ''
-    route = request.GET.get('route') or ''
-    start = request.GET.get('start') or ''
-    end = request.GET.get('end') or ''
+    # --- Load last uploaded file ---
+    if df is None:
+        file_path = os.path.join(settings.MEDIA_ROOT, "uploaded.xlsx")
+        if os.path.exists(file_path):
+            df = load_excel(file_path)
 
-    filtered = df.copy()
-    if not df.empty:
-        if vehicle:
-            filtered = filtered[filtered['Vehicle ID'] == vehicle]
-        if route and 'Route' in filtered.columns:
-            filtered = filtered[filtered['Route'] == route]
-        if start and end and 'Trip Date' in filtered.columns:
-            start_date = pd.to_datetime(start)
-            end_date = pd.to_datetime(end)
-            filtered = filtered[(filtered['Trip Date'] >= start_date) & (filtered['Trip Date'] <= end_date)]
+    # Default context to avoid JS errors
+    context = {
+        "total_trips": 0,
+        "ongoing": 0,
+        "closed": 0,
+        "flags": 0,
+        "resolved": 0,
+        "rev_m": 0,
+        "exp_m": 0,
+        "profit_m": 0,
+        "kms_k": 0,
+        "per_km": 0,
+        "profit_pct": 0,
+        "daily": json.dumps([]),
+        "audited": json.dumps([]),
+        "audit_pct": json.dumps([]),
+        "bar_labels": json.dumps(["Revenue", "Expense", "Profit"]),
+        "bar_values": json.dumps([0, 0, 0]),
+        "columns": [],
+        "rows": [],
+        "vehicles": [],
+        "routes": [],
+        "ai_report": "",
+    }
 
-        vehicles = sorted(filtered['Vehicle ID'].dropna().unique()) if 'Vehicle ID' in df.columns else []
-        routes = sorted(filtered['Route'].dropna().unique()) if 'Route' in df.columns else []
-        available_dates = sorted(filtered['Trip Date'].dropna().dt.strftime('%Y-%m-%d').unique()) if 'Trip Date' in df.columns else []
-    else:
-        vehicles, routes, available_dates = [], [], []
+    if df is not None and not df.empty:
+        # --- Filtering ---
+        vehicle = request.GET.get("vehicle")
+        route = request.GET.get("route")
+        start = request.GET.get("start")
+        end = request.GET.get("end")
 
-    def g(col): return filtered[col].sum() if col in filtered.columns else 0
-    total_trips = len(filtered)
-    ongoing = len(filtered[filtered.get('Trip Status','') == 'Pending Closure']) if 'Trip Status' in filtered.columns else 0
-    closed = len(filtered[filtered.get('Trip Status','') == 'Completed']) if 'Trip Status' in filtered.columns else 0
-    flags = len(filtered[filtered.get('Trip Status','') == 'Under Audit']) if 'Trip Status' in filtered.columns else 0
-    resolved = len(filtered[(filtered.get('Trip Status','') == 'Under Audit') & (filtered.get('POD Status','') == 'Yes')]) if 'Trip Status' in filtered.columns and 'POD Status' in filtered.columns else 0
+        filtered = df.copy()
 
-    rev = g('Freight Amount'); exp = g('Total Trip Expense'); profit = g('Net Profit'); kms = g('Actual Distance (KM)')
-    rev_m, exp_m, profit_m = round(rev/1e6,2), round(exp/1e6,2), round(profit/1e6,2)
-    kms_k = round(kms/1e3,1) if kms else 0
-    per_km = round(profit/kms,2) if kms else 0
-    profit_pct = round((profit/rev)*100,1) if rev else 0
+        if vehicle and "Vehicle" in filtered.columns:
+            filtered = filtered[filtered["Vehicle"] == vehicle]
 
-    if not filtered.empty and 'Day' not in filtered.columns and 'Trip Date' in filtered.columns:
-        filtered['Day'] = filtered['Trip Date'].dt.day
-    daily = filtered.groupby('Day')['Trip ID'].count().reindex(range(1,32), fill_value=0).tolist() if 'Trip ID' in filtered.columns and 'Day' in filtered.columns else [0]*31
-    audited = filtered[filtered.get('Trip Status','') == 'Under Audit'].groupby('Day')['Trip ID'].count().reindex(range(1,32), fill_value=0).tolist() if 'Trip ID' in filtered.columns and 'Day' in filtered.columns else [0]*31
-    audit_pct = [round(a/b*100,1) if b else 0 for a,b in zip(audited, daily)]
+        if route and "Route" in filtered.columns:
+            filtered = filtered[filtered["Route"] == route]
 
-    bar_labels = ['Revenue','Expense','Profit']
-    columns = list(filtered.columns) if not filtered.empty else []
-    rows = filtered.fillna('').to_dict('records') if not filtered.empty else []
-    bar_values = [float(rev_m), float(exp_m), float(profit_m)]
-    ai_report = generate_ai_report(filtered) if not filtered.empty else "Upload an Excel to see the report."
+        if start and "Trip Date" in filtered.columns:
+            filtered = filtered[filtered["Trip Date"] >= pd.to_datetime(start)]
 
-    context = dict(total_trips=total_trips, ongoing=ongoing, closed=closed, flags=flags,
-                   columns=columns, rows=rows,
-                   resolved=resolved, rev_m=rev_m, exp_m=exp_m, profit_m=profit_m, kms_k=kms_k,
-                   per_km=per_km, profit_pct=profit_pct, ai_report=ai_report,
-                   vehicles=vehicles, routes=routes, request=request, filtered=filtered.fillna(''),
-                   daily=daily, audited=audited, audit_pct=audit_pct,
-                   bar_labels=bar_labels, bar_values=bar_values, available_dates=available_dates)
-    return render(request, 'fleet/dashboard.html', context)
+        if end and "Trip Date" in filtered.columns:
+            filtered = filtered[filtered["Trip Date"] <= pd.to_datetime(end)]
+
+        # --- Summary like app.py ---
+        context["total_trips"] = len(filtered)
+        context["ongoing"] = len(filtered[filtered["Trip Status"] == "Pending Closure"])
+        context["closed"] = len(filtered[filtered["Trip Status"] == "Completed"])
+        context["flags"] = len(filtered[filtered["Trip Status"] == "Under Audit"])
+        context["resolved"] = len(filtered[filtered["Trip Status"] == "Resolved"])
+
+        if "Revenue" in filtered.columns and "Expense" in filtered.columns and "Km" in filtered.columns:
+            rev = filtered["Revenue"].sum()
+            exp = filtered["Expense"].sum()
+            profit = rev - exp
+            kms = filtered["Km"].sum()
+
+            context.update({
+                "rev_m": round(rev / 1_000_000, 2),
+                "exp_m": round(exp / 1_000_000, 2),
+                "profit_m": round(profit / 1_000_000, 2),
+                "kms_k": round(kms / 1000, 2),
+                "per_km": round(rev / kms, 2) if kms else 0,
+                "profit_pct": round((profit / rev) * 100, 2) if rev else 0,
+            })
+
+        # Charts
+        if "Day" in filtered.columns:
+            daily = filtered.groupby("Day").size().tolist()
+            audited = filtered[filtered["Trip Status"] == "Under Audit"].groupby("Day").size().tolist()
+            audit_pct = [round((a / d) * 100, 1) if d else 0 for d, a in zip(daily, audited)]
+            context.update({
+                "daily": json.dumps(daily),
+                "audited": json.dumps(audited),
+                "audit_pct": json.dumps(audit_pct),
+            })
+
+        # Finance chart
+        context["bar_labels"] = json.dumps(["Revenue", "Expense", "Profit"])
+        context["bar_values"] = json.dumps([context["rev_m"], context["exp_m"], context["profit_m"]])
+
+        # Trip table
+        context["columns"] = filtered.columns.tolist()
+        context["rows"] = filtered.to_dict("records")
+
+        # Dropdown filter values
+        context["vehicles"] = sorted(df["Vehicle"].dropna().unique()) if "Vehicle" in df.columns else []
+        context["routes"] = sorted(df["Route"].dropna().unique()) if "Route" in df.columns else []
+
+    return render(request, "fleet/dashboard.html", context)
+
+
 
 # --- Simple in-memory users table like Flask demo ---
 from werkzeug.security import generate_password_hash

@@ -17,42 +17,91 @@ DATA_CLOSURE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 
 def index(request):
     return redirect('signup')
 
-def signup(request):
-    if request.method == 'POST':
-        fullname = request.POST.get('fullname')
-        email = request.POST.get('email')
-        phone = request.POST.get('phone')
-        password = request.POST.get('password')
-        confirm_password = request.POST.get('confirm_password')
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, logout, update_session_auth_hash
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 
-        if email not in settings.ALLOWED_USERS:
-            return render(request, 'fleet/simple_message.html', {'message': '❌ This email is not allowed to register.'})
 
-        if password != confirm_password:
-            return render(request, 'fleet/simple_message.html', {'message': '❌ Passwords do not match!'})
 
-        # store to a text file just like original app
-        with open(os.path.join(settings.BASE_DIR, 'users.txt'), 'w') as f:
-            f.write(f"{email},{password},{fullname},{phone}\n")
-        return render(request, 'fleet/simple_message.html', {'message': '✅ Registration successful! <a href="/login">Click here to login</a>'})
-    return render(request, 'fleet/signup.html')
+# ------------------- SIGNUP -------------------
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.hashers import make_password
+from .forms import SignUpForm
+
+def signup_view(request):
+    if request.method == "POST":
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            password = form.cleaned_data.get("password")
+            confirm_password = form.cleaned_data.get("confirm_password")
+
+            if password != confirm_password:
+                messages.error(request, "❌ Passwords do not match")
+            else:
+                user = form.save(commit=False)
+                # ✅ hash before saving
+                user.password = make_password(password)
+                user.save()
+                messages.success(request, "✅ Account created successfully!")
+                return redirect("login")
+    else:
+        form = SignUpForm()
+
+    return render(request, "fleet/signup.html", {"form": form})
+
+
+# ------------------- LOGIN -------------------
+from django.contrib.auth.hashers import check_password
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import UserAccount
 
 def login_view(request):
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-        allowed = settings.ALLOWED_USERS.get(email)
-        if allowed and allowed['password'] == password:
-            request.session['user_email'] = email
-            request.session['user_name'] = allowed['fullname']
-            return redirect('welcome_dashboard')
-        return render(request, 'fleet/simple_message.html', {'message':'❌ Invalid credentials or access not allowed. <a href="/login">Try again</a>'})
-    return render(request, 'fleet/login.html')
+    if request.method == "POST":
+        email = request.POST.get("email")
+        password = request.POST.get("password")
 
+        try:
+            user = UserAccount.objects.get(email=email)
+            if check_password(password, user.password):
+                messages.success(request, f"✅ Welcome back, {user.fullname}!")
+                # TODO: set session / redirect to dashboard
+                return redirect("dashboard")
+            else:
+                messages.error(request, "❌ Invalid password")
+        except UserAccount.DoesNotExist:
+            messages.error(request, "❌ This email is not registered")
+    return render(request, "fleet/login.html")
+
+
+# ------------------- LOGOUT -------------------
 def logout_view(request):
-    request.session.flush()
-    return redirect('login')
+    logout(request)
+    return redirect("login")
 
+
+# ------------------- CHANGE PASSWORD -------------------
+@login_required
+@require_http_methods(["GET", "POST"])
+def change_password(request):
+    if request.method == "POST":
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)  # keep session alive
+            return render(request, "fleet/simple_message.html", {
+                "message": "✅ Password changed successfully."
+            })
+    else:
+        form = PasswordChangeForm(request.user)
+
+    return render(request, "fleet/change_password.html", {"form": form})
+
+
+# ================================================================
 def welcome_dashboard(request):
     if 'user_name' in request.session:
         return render(request, 'fleet/welcome_dashboard.html', {'name': request.session['user_name']})
@@ -281,6 +330,20 @@ def dashboard(request):
         context["routes"] = sorted(df["route"].dropna().unique()) if "route" in df.columns else []
 
     return render(request, "fleet/dashboard.html", context)
+
+# --- Password reset & change utilities ---
+def _save_allowed_users():
+    """Persist settings.ALLOWED_USERS to a JSON file so changes survive restarts."""
+    try:
+        path = getattr(settings, 'ALLOWED_USERS_PATH', None)
+        if not path:
+            return
+        with open(path, 'w') as f:
+            json.dump(settings.ALLOWED_USERS, f, indent=2)
+    except Exception as e:
+        # Fallback: ignore persistence errors, but still let runtime change work
+        pass
+
 
 # --- Simple in-memory users table like Flask demo ---
 from werkzeug.security import generate_password_hash
@@ -566,29 +629,68 @@ def financial_dashboard(request):
     upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
     os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
     os.makedirs(upload_dir, exist_ok=True)
-    os.makedirs(upload_dir, exist_ok=True)
+
+    # Choose file: uploaded Excel, else default closure sheet, else fallback to fleet file
     if request.method == 'POST' and request.FILES.get('file'):
         f = request.FILES['file']
         path = os.path.join(upload_dir, f.name)
         with open(path, 'wb+') as dest:
-            for chunk in f.chunks(): dest.write(chunk)
+            for chunk in f.chunks():
+                dest.write(chunk)
         file_to_use = path
     else:
         file_to_use = DATA_CLOSURE if os.path.exists(DATA_CLOSURE) else DATA_FLEET
+
     df = load_excel(file_to_use)
-    if df.empty:
-        days = []; revenue=[]; expense=[]; profit=[]; total_revenue=0; total_profit=0; total_km=0
-    else:
-        recent_days = sorted(df['Day'].dropna().unique())[-10:] if 'Day' in df.columns else []
-        day_labels = [f"Day {{int(d)}}" for d in recent_days]
-        daily = df[df['Day'].isin(recent_days)] if recent_days else df
-        revenue = daily.groupby('Day')['Freight Amount'].sum().reindex(recent_days, fill_value=0).astype(int).tolist() if 'Freight Amount' in df.columns and recent_days else []
-        expense = daily.groupby('Day')['Total Trip Expense'].sum().reindex(recent_days, fill_value=0).astype(int).tolist() if 'Total Trip Expense' in df.columns and recent_days else []
-        profit = [r-e for r,e in zip(revenue, expense)] if revenue and expense else []
-        total_revenue = round(df.get('Freight Amount', pd.Series(0)).sum()/1e6,2)
-        total_profit = round(df.get('Net Profit', pd.Series(0)).sum()/1e6,2)
-        total_km = round(df.get('Actual Distance (KM)', pd.Series(0)).sum()/1e3,1)
-        days = [f"Day {{int(d)}}" for d in recent_days]
-    context = dict(days=json.dumps(days), revenue=json.dumps(revenue), expense=json.dumps(expense),
-                   profit=json.dumps(profit), total_revenue=total_revenue, total_profit=total_profit, total_km=total_km)
+
+    # Defaults
+    days = []
+    revenue = []
+    expense = []
+    profit = []
+    total_revenue = 0
+    total_profit = 0
+    total_km = 0
+
+    if not df.empty:
+        # Use Trip Date as the time axis; derive recent 10 dates
+        if 'Trip Date' in df.columns:
+            df['Trip Date'] = pd.to_datetime(df['Trip Date'], errors='coerce')
+            recent_dates = sorted(df['Trip Date'].dropna().unique())[-10:]
+            daily = df[df['Trip Date'].isin(recent_dates)].copy()
+            days = [pd.Timestamp(d).strftime('%d-%b') for d in recent_dates]
+
+            # Aggregate columns if present
+            if 'Freight Amount' in df.columns:
+                revenue = (daily.groupby('Trip Date')['Freight Amount']
+                           .sum().reindex(recent_dates, fill_value=0).astype(float).round(0).tolist())
+            if 'Total Trip Expense' in df.columns:
+                expense = (daily.groupby('Trip Date')['Total Trip Expense']
+                           .sum().reindex(recent_dates, fill_value=0).astype(float).round(0).tolist())
+            # Prefer provided Net Profit; else compute
+            if 'Net Profit' in df.columns:
+                profit = (daily.groupby('Trip Date')['Net Profit']
+                          .sum().reindex(recent_dates, fill_value=0).astype(float).round(0).tolist())
+            elif revenue and expense and len(revenue) == len(expense):
+                profit = [r - e for r, e in zip(revenue, expense)]
+
+        # Totals (scaled for cards shown in template)
+        if 'Freight Amount' in df.columns:
+            total_revenue = round(float(df['Freight Amount'].fillna(0).sum()) / 1e6, 2)
+        if 'Net Profit' in df.columns:
+            total_profit = round(float(df['Net Profit'].fillna(0).sum()) / 1e6, 2)
+        elif 'Freight Amount' in df.columns and 'Total Trip Expense' in df.columns:
+            total_profit = round(float((df['Freight Amount'].fillna(0) - df['Total Trip Expense'].fillna(0)).sum()) / 1e6, 2)
+        if 'Actual Distance (KM)' in df.columns:
+            total_km = round(float(df['Actual Distance (KM)'].fillna(0).sum()) / 1e3, 1)
+
+    context = dict(
+        days=json.dumps(days),
+        revenue=json.dumps(revenue),
+        expense=json.dumps(expense),
+        profit=json.dumps(profit),
+        total_revenue=total_revenue,
+        total_profit=total_profit,
+        total_km=total_km
+    )
     return render(request, 'fleet/financial_dashboard.html', context)

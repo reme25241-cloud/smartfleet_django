@@ -72,11 +72,26 @@ else:
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+ALLOWED_USERS_PATH = BASE_DIR / 'allowed_users.json'
+
 # Allowed users (ported from Flask demo)
-ALLOWED_USERS = {
+# Load from JSON if present so password changes persist
+if ALLOWED_USERS_PATH.exists():
+    import json as _json
+    with open(ALLOWED_USERS_PATH) as _f:
+        ALLOWED_USERS = _json.load(_f)
+else:
+    ALLOWED_USERS = {
     "travels123@gmail.com": {
         "password": "travel1",
         "fullname": "travel",
         "phone": "1234567890"
     }
 }
+
+# settings.py
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"   # where to go after login
+LOGOUT_REDIRECT_URL = "/login/"
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

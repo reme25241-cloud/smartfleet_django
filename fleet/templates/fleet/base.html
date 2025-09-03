@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Smart Fleet AI{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-[#0B132B] text-white font-sans min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <nav class="bg-[#1C2541] p-4 shadow-md">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <a class="font-bold text-lg text-white" href="/">Smart Fleet AI</a>
+
+      <!-- Mobile menu button -->
+      <button class="md:hidden" onclick="document.getElementById('menu').classList.toggle('hidden')">
+        ☰
+      </button>
+
+      <!-- Menu -->
+      <div id="menu" class="hidden md:flex gap-4 items-center">
+        {% if user.is_authenticated %}
+          <a href="{% url 'dashboard' %}" class="hover:underline">Dashboard</a>
+          <a href="{% url 'trip_generator' %}" class="hover:underline">Trip Generator</a>
+          <a href="{% url 'trip_closure' %}" class="hover:underline">Trip Closure</a>
+          <a href="{% url 'trip_audit_dashboard' %}" class="hover:underline">Trip Audit</a>
+          <a href="{% url 'financial_dashboard' %}" class="hover:underline">Financial</a>
+          <a href="{% url 'user_settings' %}" class="hover:underline">Users</a>
+          <a href="{% url 'change_password' %}" class="hover:underline">Change Password</a>
+          <a href="{% url 'logout' %}" class="bg-red-600 px-3 py-1 rounded hover:bg-red-700">Logout</a>
+        {% else %}
+          <a href="{% url 'login' %}" class="hover:underline">Login</a>
+          <a href="{% url 'signup' %}" class="hover:underline">Signup</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Content -->
+  <main class="flex-grow max-w-7xl mx-auto w-full p-4 md:p-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-[#1C2541] text-gray-400 text-center py-3 mt-6">
+    &copy; {{ now|date:"Y" }} Smart Fleet AI
+  </footer>
+</body>
+</html>

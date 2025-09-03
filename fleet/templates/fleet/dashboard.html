@@ -2,6 +2,30 @@
 {% load fleet_extras %}
 {% block title %}Fleet Dashboard{% endblock %}
 {% block content %}
+  <!-- Navbar -->
+  <nav class="bg-[#1C2541] p-4 shadow-md">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <a class="font-bold text-lg text-white" href="/">Smart Fleet AI</a>
+
+      <!-- Mobile menu button -->
+      <button class="md:hidden" onclick="document.getElementById('menu').classList.toggle('hidden')">
+        ☰
+      </button>
+
+      <!-- Menu -->
+      <div id="menu" class="hidden md:flex gap-4 items-center">
+          <a href="{% url 'dashboard' %}" class="hover:underline">Dashboard</a>
+          <a href="{% url 'trip_generator' %}" class="hover:underline">Trip Generator</a>
+          <a href="{% url 'trip_closure' %}" class="hover:underline">Trip Closure</a>
+          <a href="{% url 'trip_audit_dashboard' %}" class="hover:underline">Trip Audit</a>
+          <a href="{% url 'financial_dashboard' %}" class="hover:underline">Financial</a>
+          <a href="{% url 'user_settings' %}" class="hover:underline">Users</a>
+          <a href="{% url 'change_password' %}" class="hover:underline">Change Password</a>
+          <a href="{% url 'logout' %}" class="bg-red-600 px-3 py-1 rounded hover:bg-red-700">Logout</a>
+      </div>
+    </div>
+  </nav>
+
 <h1 class="text-3xl font-bold mb-6">Fleet Dashboard</h1>
 
 <!-- Upload Excel -->

@@ -6,3 +6,4 @@ PyMuPDF
 markupsafe
 Werkzeug
 scikit-learn
+python-3.11.6
